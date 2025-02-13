@@ -1,17 +1,17 @@
-- ~if data enable we send pixels otherwise we send control data.
+- if data enable we send pixels otherwise we send control data.
 - each color channel is on its own cable
 
 ## Algorithm
 
 reference: [DVI specsheet](https://glenwing.github.io/docs/DVI-1.0.pdf)
 
-`D` - input pixel data
-`C1`, `C0` - control data for the channel
-`DE` - data enable
-`N_0{x}` - number of 0s in x (we use `count_zeros(x)`)
-`N_1{x}` - number of 1s in x (we use `count_ones(x)`)
-`cnt{t}` - positive value if more 1s have been transmitted and negative if more 0s have been transmitted
-`q_out` - 10 bits of encoded output value (one channel)
+- `D` - input pixel data
+- `C1`, `C0` - control data for the channel
+- `DE` - data enable
+- `N_0{x}` - number of 0s in x (we use `count_zeros(x)`)
+- `N_1{x}` - number of 1s in x (we use `count_ones(x)`)
+- `cnt{t}` - positive value if more 1s have been transmitted and negative if more 0s have been transmitted
+- `q_out` - 10 bits of encoded output value (one channel)
 
 ---
 
