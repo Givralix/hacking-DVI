@@ -8,6 +8,11 @@ fn main() {
     
     let mut buffer = img.into_rgb8();
     let mut cnt = [0; 3];
+
+    let mut channel_0_stream = Vec::new();
+    let mut channel_1_stream = Vec::new();
+    let mut channel_2_stream = Vec::new();
+
     for pixel in buffer.pixels_mut() {
         // encode
         let (channel_0, count_0) = encode(pixel.0[0], cnt[0], true, false, false);
@@ -19,6 +24,20 @@ fn main() {
         let (channel_2, count_2) = encode(pixel.0[2], cnt[2], true, false, false);
         cnt[2] = count_2;
 
+        channel_0_stream.extend(bits_to_booleans(channel_0));
+        channel_1_stream.extend(bits_to_booleans(channel_1));
+        channel_2_stream.extend(bits_to_booleans(channel_2));
+    }
+
+    // for frame in 0..500 {
+    //     channel_0_stream.rotate_left(1);
+    //     channel_1_stream.rotate_left(1);
+    //     channel_2_stream.rotate_left(1);
+    for (i, pixel) in buffer.pixels_mut().enumerate() {
+        let channel_0 = booleans_to_bits(&channel_0_stream[(i*10)..][..10]);
+        let channel_1 = booleans_to_bits(&channel_1_stream[(i*10)..][..10]);
+        let channel_2 = booleans_to_bits(&channel_2_stream[(i*10)..][..10]);
+
         // decode
         let (channel_0, _, _) = decode(channel_0, true);
         let (channel_1, _, _) = decode(channel_1, true);
@@ -27,7 +46,38 @@ fn main() {
         *pixel = image::Rgb([channel_0 as u8, channel_1 as u8, channel_2 as u8]);
     }
 
-    buffer.save(format!("encoded-{}", path)).unwrap();
+    buffer.save(format!("encoded-decoded-frame-{path}")).unwrap();
+    // buffer.save(format!("encoded-decoded-frame{frame}-{path}")).unwrap();
+    // println!("frame {frame} done");
+    // }
+}
+ 
+fn bits_to_booleans(ten_bits: u16) -> Vec<bool> {
+    let mut bools = Vec::new();
+
+    for i in 0..10 {
+        bools.push((ten_bits & (1 << i)) != 0);
+    }
+
+    bools
+}
+
+fn booleans_to_bits(bools: &[bool]) -> u16 {
+    assert!(bools.len() == 10);
+
+    let mut ten_bits: u16 = 0;
+
+    for bool_val in bools.iter().rev() {
+        if *bool_val {
+            ten_bits += 1;
+        }
+        
+        ten_bits = ten_bits << 1;
+    }
+    
+    ten_bits = ten_bits >> 1;
+
+    ten_bits
 }
 
 fn encode(color: u8, cnt_prev: isize, data_enable: bool, c0: bool, c1: bool) -> (u16, isize) {
