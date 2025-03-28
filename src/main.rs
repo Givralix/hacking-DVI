@@ -24,15 +24,21 @@ fn main() {
         let (channel_2, count_2) = encode(pixel.0[2], cnt[2], true, false, false);
         cnt[2] = count_2;
 
+        #[cfg(feature = "floats")] {
+            let channel_0 = (f64::from_bits((channel_0 as f64 * 1.01).to_bits() ) as u16);
+            let channel_1 = (f64::from_bits((channel_1 as f64 * 1.01).to_bits() ) as u16);
+            let channel_2 = (f64::from_bits((channel_2 as f64 * 1.01).to_bits() ) as u16);
+        }
+
         channel_0_stream.extend(bits_to_booleans(channel_0));
         channel_1_stream.extend(bits_to_booleans(channel_1));
         channel_2_stream.extend(bits_to_booleans(channel_2));
     }
 
     // for frame in 0..500 {
-    //     channel_0_stream.rotate_left(1);
-    //     channel_1_stream.rotate_left(1);
-    //     channel_2_stream.rotate_left(1);
+        // channel_0_stream.rotate_left(1);
+        // channel_1_stream.rotate_left(1);
+        // channel_2_stream.rotate_left(1);
     for (i, pixel) in buffer.pixels_mut().enumerate() {
         let channel_0 = booleans_to_bits(&channel_0_stream[(i*10)..][..10]);
         let channel_1 = booleans_to_bits(&channel_1_stream[(i*10)..][..10]);
@@ -46,7 +52,17 @@ fn main() {
         *pixel = image::Rgb([channel_0 as u8, channel_1 as u8, channel_2 as u8]);
     }
 
-    buffer.save(format!("encoded-decoded-frame-{path}")).unwrap();
+    // for pixel in buffer.pixels_mut() {
+    //     let channel_0 = encode(pixel.0[0], cnt[0], true, false, false);
+    //     cnt[0] = channel_0.1;
+    //     let channel_1 = encode(pixel.0[1], cnt[1], true, false, false);
+    //     cnt[1] = channel_1.1;
+    //     let channel_2 = encode(pixel.0[2], cnt[2], true, false, false);
+    //     cnt[2] = channel_2.1;
+    //     *pixel = image::Rgb([(channel_0.0 >> 0) as u8, (channel_1.0 >> 0) as u8, (channel_2.0 >> 0) as u8]);
+    // }
+
+    buffer.save(format!("encoded-decoded-4-{path}")).unwrap();
     // buffer.save(format!("encoded-decoded-frame{frame}-{path}")).unwrap();
     // println!("frame {frame} done");
     // }
@@ -80,6 +96,7 @@ fn booleans_to_bits(bools: &[bool]) -> u16 {
     ten_bits
 }
 
+
 fn encode(color: u8, cnt_prev: isize, data_enable: bool, c0: bool, c1: bool) -> (u16, isize) {
     if !data_enable {
         return match (c1, c0) {
@@ -92,18 +109,38 @@ fn encode(color: u8, cnt_prev: isize, data_enable: bool, c0: bool, c1: bool) -> 
 
     let mut q_m: u16 = 0;
     let mut q_out: u16 = 0;
+
+    #[cfg(feature = "lil-glitch")] {
+        q_out = 1;
+    }
+    
+
     let mut cnt = cnt_prev;
     q_m = color as u16 & 0b0000_0001;
     // 0111_0010
     if color.count_ones() > 4 || (color.count_ones() == 4 && color & 0b0000_0001 == 0) {
         for i in 0..=6 {
             let mask = 1 << i;
-            q_m += (!(((q_m & mask) << 1) ^ (color as u16 & (mask << 1)))) & (mask << 1);
+            let mut change = (!(((q_m & mask) << 1) ^ (color as u16 & (mask << 1)))) & (mask << 1);
+            #[cfg(feature = "dark-glow")] {
+                change = (!(((q_m & mask) << 1) & (color as u16 & (mask << 1)))) & (mask << 1);
+            }
+            #[cfg(feature = "colors")] {
+                change = (!(((q_m & mask) << 1) | (color as u16 & (mask << 1)))) & (mask << 1);
+            }
+            q_m += change;
         }
     } else {
         for i in 0..=6 {
             let mask = 1 << i;
-            q_m += (((q_m & mask) << 1) ^ (color as u16 & (mask << 1))) & (mask << 1);
+            let mut change = (((q_m & mask) << 1) ^ (color as u16 & (mask << 1))) & (mask << 1);
+            #[cfg(feature = "dark-glow")] {
+                change = (((q_m & mask) << 1) & (color as u16 & (mask << 1))) & (mask << 1);
+            }
+            #[cfg(feature = "colors")] {
+                change = (((q_m & mask) << 1) | (color as u16 & (mask << 1))) & (mask << 1);
+            }
+            q_m += change;
         }
         q_m = q_m.saturating_add(0b0000_0001_0000_0000);
     }
@@ -141,6 +178,7 @@ fn encode(color: u8, cnt_prev: isize, data_enable: bool, c0: bool, c1: bool) -> 
     (q_out, cnt)
 }
 
+
 fn decode(q_out: u16, data_enable: bool) -> (u8, bool, bool) {
     if !data_enable {
         return match q_out {
@@ -161,13 +199,18 @@ fn decode(q_out: u16, data_enable: bool) -> (u8, bool, bool) {
     }
 
     let mut new_color = color & 0b0000_0001;
+        let mut max_range = 6;
+    
+    #[cfg(feature = "nighttime")] {
+        max_range = 5;
+    }
     if d8 {
-        for i in 0..=6 {
+        for i in 0..=max_range {
             let mask = 1 << i;
             new_color += ((((color & mask) << 1) ^ (color & (mask << 1)))) & (mask << 1);
         }
     } else {
-        for i in 0..=6 {
+        for i in 0..=max_range {
             let mask = 1 << i;
             new_color += (!((color & mask) << 1) ^ (color & (mask << 1))) & (mask << 1);
         }
